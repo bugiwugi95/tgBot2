@@ -8,8 +8,10 @@ import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.GetFile;
 import org.telegram.telegrambots.meta.api.methods.send.SendMediaGroup;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
-import org.telegram.telegrambots.meta.api.methods.send.SendPhoto;
-import org.telegram.telegrambots.meta.api.objects.*;
+import org.telegram.telegrambots.meta.api.objects.File;
+import org.telegram.telegrambots.meta.api.objects.Message;
+import org.telegram.telegrambots.meta.api.objects.PhotoSize;
+import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.media.InputMedia;
 import org.telegram.telegrambots.meta.api.objects.media.InputMediaPhoto;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardMarkup;
@@ -19,17 +21,15 @@ import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import utils.ImageUtils;
 import utils.PhotoMessage;
 
-
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 
-import static utils.PhotoMessage.processingImage;
-
 public class Bot extends TelegramLongPollingBot {
-
+    HashMap<String, Message> messages = new HashMap<>();
 
     @Override
     public void onUpdateReceived(Update update) {
@@ -40,18 +40,28 @@ public class Bot extends TelegramLongPollingBot {
                 execute(responseTextMessage);
                 return;
             }
-        } catch (InvocationTargetException | IllegalAccessException | TelegramApiException e) {
-            throw new RuntimeException(e);
-        }
 
-        try {
-       SendMediaGroup responseMediaMessage = runPhotoFilter(message);
-            if (responseMediaMessage != null) {
-                execute(responseMediaMessage);
+            responseTextMessage = runPhotoMessage(message);
+            if (responseTextMessage != null) {
+                execute(responseTextMessage);
                 return;
+            }
+
+
+            Object responseMediaMessage = runPhotoFilter(message);
+            if (responseMediaMessage != null) {
+                if (responseMediaMessage instanceof SendMediaGroup) {
+                    execute((SendMediaGroup) responseMediaMessage);
+                } else {
+                    if (responseMediaMessage instanceof SendMessage) {
+                        execute((SendMessage) responseMediaMessage);
+                    }
                 }
 
-            } catch (TelegramApiException | IllegalAccessException | InvocationTargetException e) {
+
+            }
+
+        } catch (TelegramApiException | IllegalAccessException | InvocationTargetException e) {
             throw new RuntimeException(e);
         }
 
@@ -81,17 +91,45 @@ public class Bot extends TelegramLongPollingBot {
         return null;
     }
 
-    private SendMediaGroup runPhotoFilter(Message message) throws InvocationTargetException, IllegalAccessException {
-        String caption = message.getCaption();
-        ImageOperation operation = ImageUtils.getOperation(caption);
-        if (operation == null) return null;
+    private SendMessage runPhotoMessage(Message message) {
         List<File> files = getFilesByMessage(message);
-        try {
-            List<String> paths = PhotoMessage.savePhotos(files, getBotToken());
-            return preparePhotoMessage(paths,operation, message.getChatId().toString());
+        if (files.isEmpty()) {
+            return null;
+        }
+        String chatId = message.getChatId().toString();
+        this.messages.put(chatId, message);
 
-        } catch (IOException  e) {
-            throw new RuntimeException(e);
+        ReplyKeyboardMarkup replyKeyboardMarkup = new ReplyKeyboardMarkup();
+        ArrayList<KeyboardRow> allKeyboardRows = new ArrayList<>(getKeyboardRow(FilterOperation.class));
+        replyKeyboardMarkup.setKeyboard(allKeyboardRows);
+        replyKeyboardMarkup.setOneTimeKeyboard(true);
+        SendMessage sendMessage = new SendMessage();
+        sendMessage.setReplyMarkup(replyKeyboardMarkup);
+        sendMessage.setChatId(chatId);
+        sendMessage.setText("Выберите фильтр");
+        return sendMessage;
+    }
+
+    private Object runPhotoFilter(Message newMessage) throws InvocationTargetException, IllegalAccessException {
+        final String text = newMessage.getText();
+        ImageOperation operation = ImageUtils.getOperation(text);
+        if (operation == null) return null;
+        String chatId = newMessage.getChatId().toString();
+        Message photoMessage = messages.get(chatId);
+        if (photoMessage != null) {
+            List<File> files = getFilesByMessage(photoMessage);
+            try {
+                List<String> paths = PhotoMessage.savePhotos(files, getBotToken());
+                return preparePhotoMessage(paths, operation, chatId);
+
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        } else {
+            SendMessage sendMessage = new SendMessage();
+            sendMessage.setChatId(chatId);
+            sendMessage.setText("Отправьте фото");
+            return sendMessage;
         }
 
     }
@@ -103,10 +141,10 @@ public class Bot extends TelegramLongPollingBot {
 
         for (String paths : localPaths) {
             InputMedia inputMedia = new InputMediaPhoto();
-            inputMedia.setMedia(new java.io.File(paths),"path");
+            inputMedia.setMedia(new java.io.File(paths), "path");
             medias.add(inputMedia);
             try {
-                PhotoMessage.processingImage(paths,operation);
+                PhotoMessage.processingImage(paths, operation);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
@@ -121,6 +159,7 @@ public class Bot extends TelegramLongPollingBot {
 
     private List<File> getFilesByMessage(Message message) {
         List<PhotoSize> photoSizes = message.getPhoto();
+        if (photoSizes == null) return new ArrayList<>();
         ArrayList<File> files = new ArrayList<>();
         for (PhotoSize photoSize : photoSizes) {
             final String fileId = photoSize.getFileId();
@@ -178,7 +217,7 @@ public class Bot extends TelegramLongPollingBot {
     }
 
     @Override
-    public  String getBotToken() {
+    public String getBotToken() {
         return "7259093033:AAG-sIuZ-7DcP-crun47CnDU7DW9MGNrQLo";
     }
 
