@@ -28,6 +28,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
+import static commands.BotCommonCommands.adminCommand;
+
 public class Bot extends TelegramLongPollingBot {
     HashMap<String, Message> messages = new HashMap<>();
 
@@ -67,6 +69,9 @@ public class Bot extends TelegramLongPollingBot {
 
 
     }
+
+
+
 
     private static SendMessage runCommonCommand(Message message) throws InvocationTargetException, IllegalAccessException {
         String text = message.getText();
