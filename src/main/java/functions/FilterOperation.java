@@ -1,8 +1,11 @@
 package functions;
 
+import commands.AppBotCommand;
+
 import java.util.Random;
 
 public class FilterOperation {
+    @AppBotCommand(name = "greyScale",desc = "greyScale филтер",showInHelp = true)
     public static float[] greyScale(float[] rgb) {
         float mean = (rgb[0] + rgb[1] + rgb[2]) / 3;
         rgb[0] = mean;
@@ -11,28 +14,28 @@ public class FilterOperation {
         return rgb;
 
     }
-
+    @AppBotCommand(name = "onlyRed",desc = "onlyRed филтер",showInHelp = true)
     public static float[] onlyRed(float[] rgb) {
         rgb[1] = 0;
         rgb[2] = 0;
         return rgb;
 
     }
-
+    @AppBotCommand(name = "onlyGreen",desc = "onlyGreen филтер",showInHelp = true)
     public static float[] onlyGreen(float[] rgb) {
         rgb[0] = 0;
         rgb[2] = 0;
         return rgb;
 
     }
-
+    @AppBotCommand(name = "onlyBlue",desc = "onlyBlue филтер",showInHelp = true)
     public static float[] onlyBlue(float[] rgb) {
         rgb[0] = 0;
         rgb[1] = 0;
         return rgb;
 
     }
-
+    @AppBotCommand(name = "sepia",desc = "sepia филтер",showInHelp = true)
     public static float[] sepia(float[] rgb) {
         Random random = new Random();
         float rand = random.nextFloat() * 50/255;
